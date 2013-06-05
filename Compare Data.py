@@ -1,5 +1,10 @@
-import csv, sys, re, time
-from datetime import datetime, timedelta
+import csv, sys, re
+import datetime as DT
+##from datetime import datetime, timedelta
+import lib.myFuctions as AC
+
+startTime = DT.datetime.now()
+print ("Program start : %s" % startTime )
 
 FromAccess = 'importFiles/Access.csv'
 FromSIR = 'importFiles/SIR.csv'
@@ -10,6 +15,7 @@ dups = 'exportFiles/dups.txt'
 
 accessDictionary = []
 sirDictionary = []
+highPointList = []
 
 
 
@@ -19,12 +25,12 @@ def makeDict (inFile, OutDict):
     ifile  = open(inFile, 'r')
     reader = csv.reader(ifile)
     lineNum = 0
+    print (maxrow)
     for eachLine in reader:
         lineNum += 1
 ##      check for blank lines
         if not eachLine:
             print ('Blank Line')
-            time.sleep(1)
             continue
 ##      Save header row.
         lowerList = []
@@ -50,7 +56,7 @@ def makeDict (inFile, OutDict):
 
 
 minrow = 0
-maxrow = 10000
+maxrow = 10
 makeDict (FromAccess, accessDictionary)
 ## clean data from access
 for rowInAccess in accessDictionary:
@@ -58,6 +64,9 @@ for rowInAccess in accessDictionary:
        rowInAccess['sex'] = 'M' 
     elif rowInAccess['sex'] == '1':
        rowInAccess['sex'] = 'F' 
+    rowInAccess['address1'] = AC.cleanAddress(rowInAccess['address1'] )
+
+linesInAccess = len(accessDictionary)
 
 minrow = 0
 maxrow = 7000
@@ -67,7 +76,9 @@ for rowInSIR in sirDictionary:
     if rowInSIR['db_sex'] == '0':   # zero = male
        rowInSIR['db_sex'] = 'M' 
     elif rowInSIR['db_sex'] == '1':
-       rowInSIR['db_sex'] = 'F' 
+       rowInSIR['db_sex'] = 'F'
+
+    rowInSIR['address'] = AC.cleanAddress(rowInSIR['address'] )
 
 
 ## finding months and days and years
@@ -81,8 +92,8 @@ def formatDate(somedate):
     return (month, day, year, stringDate)
 
 def days_between(d1, d2):
-    d1 = datetime.strptime(d1, "%m/%d/%Y")
-    d2 = datetime.strptime(d2, "%m/%d/%Y")
+    d1 = DT.datetime.strptime(d1, "%m/%d/%Y")
+    d2 = DT.datetime.strptime(d2, "%m/%d/%Y")
     return abs((d2 - d1).days)
 
 def compareDOB (d1, d2):
@@ -116,60 +127,13 @@ def compareDOB (d1, d2):
     return (pointDOB)
 
 
-def rchop(thestring, ending):
-    if thestring.endswith(ending):
-        return thestring[:-len(ending)]
-    return thestring
-
-
-def cleanAddress(address):
-    # define characters to be removed
-    removeChars = ['.', '-', ',', '!!!']
-    singleChars = [ 'APT', 'AVE', 'AVENUE', 'BVLD', 'CT', 'COURT', 'DR', 'DRIVE',
-                'FT', 'FORT', 'PL', 'PLACE', 'RD', 'ROAD', 'SAINT', 'ST', 'STREET',
-                'TER', 'TERR', 'TERRACE',
-                'N', 'S', 'E', 'W', 'NORTH', 'SOUTH', 'EAST', 'WEST']
-
-    # wherever they are remove them
-    for i in removeChars:
-        address = address.replace(i, ' ')
-
-    # remove if spaces on both sides
-    for i in singleChars:
-        address = address.replace(' ' + i + ' ', ' ')
-
-    # remove from end of address
-    for i in singleChars:
-        address = rchop(address, i)
-
-    # replace specific phrases
-    address = address.replace('BWAY ', 'BROADWAY')
-    address = address.replace("B'WAY ", 'BROADWAY')
-    address = address.replace('WASH ', 'WASHINGTON')
-    address = address.replace('AAVE ', 'AVE')
-    address = address.replace('FIRST ', '1ST')
-    address = address.replace('SECOND ', '2ND')
-    address = address.replace('THIRD ', '3RD')
-    address = address.replace('FOURTH ', '4TH')
-    address = address.replace('FIFTH ', '5TH')
-    address = address.replace('SIXTH ', '6TH')
-    address = address.replace('SEVENTH ', '7TH')
-    address = address.replace('EIGHTH ', '8TH')
-    address = address.replace('NINETH ', '9TH')
-    address = address.replace('TENTH ', '10TH')
-    address = ' '.join(address.split())  # one way to pack multiple spaces
-    return (address)
-
 
 def compareAddress (a1, a2):
     points = 0
-    if cleanAddress(a2) in cleanAddress(a1):
+    if a2 in a1 or a1 in a2:
         points += 8
-    elif cleanAddress(a1) in cleanAddress(a2):
-        points += 8
-    for aword in cleanAddress(a2).split():
-        if aword in cleanAddress(a1):
-##            print(aword, ':',  cleanAddress(a1))
+    for aword in a2.split():
+        if aword in a1:
             points += 1
     return (points)
 
@@ -186,7 +150,6 @@ def compareFName (fname1, fname2):
     return (points)
 
 
-
 def comparePhone (phone1, phone2):
     points = 0
     if phone1 == '' or phone2 == '':
@@ -195,14 +158,7 @@ def comparePhone (phone1, phone2):
         points = 10
     return (points)
 
-def sexFromAccess (sex1):
-    if sex1 == '0':
-        sex1 == 'M'
-    elif sex1 == '1':
-        sex1 == 'F'
-    return (sex1)
-
-##sys.exit('Debugging address')
+#sys.exit('Debugging address')
 
 
 print ('----Cycle Through Both Dictionaries----------')
@@ -236,8 +192,8 @@ with open(dups, 'w') as dupObject:
                 
             pointAddress = compareAddress (rowInSIR['address'] , rowInAccess['address1'])
 
-
             pointDOB = compareDOB (rowInSIR['db_dob'] , rowInAccess['dob'] )
+
             pointLastName = compareLName(rowInSIR['lname'],  rowInAccess['lname'])
             
     ##      Same phone number in multiple columns is a problem.
@@ -278,8 +234,8 @@ with open(dups, 'w') as dupObject:
                 highPhone = matchingPhones
                 highAddress = rowInSIR['address']
                 matchInfo = {'pln': pointLastName, 'pfn': pointFirstName, 'pdob' : pointDOB, 'pphone' : pointPhone, 'paddress' : pointAddress}
-                
-        if highPoint > 31:
+        highPointList.append(highPoint)
+        if highPoint > 88:
             print ('{0:5} {1:10} {2:15} {3:10} {4:35} {5:20}'. format('', rowInAccess['lname'], rowInAccess['fname'], rowInAccess['dob'], highPhone, rowInAccess['address1']))
             print ('{0:5} {1:10} {2:15} {3:10} {4:35} {5:20}'. format( highPoint, highLast, highFirst, highDOB, '', highAddress ))
             print ('{0:5} {1:10} {2:15} {3:10} {4:35} {5:20}'. format( '', matchInfo ['pln'], matchInfo ['pfn'], matchInfo ['pdob'], matchInfo['pphone'], matchInfo['paddress']))
@@ -293,10 +249,24 @@ with open(dups, 'w') as dupObject:
             dupObject.write ('\n')
             dupObject.write ('{0:5} {1:10} {2:15} {3:10} {4:35} {5:20}'. format( '', matchInfo ['pln'], matchInfo ['pfn'], matchInfo ['pdob'], matchInfo['pphone'], matchInfo['paddress']))
             dupObject.write ('\n')
-        else:
-            print ('-')
+        elif highPoint != 0:
+            print (accessLine,'/',linesInAccess, rowInAccess['lname'], highPoint)
     ##        print ('{0:5} {1:10} {2:15} {3:10} {4:35}'. format(highPoint, rowInAccess['lname'], rowInAccess['fname'], rowInAccess['dob'], highPhone, rowInAccess['address1']))
             
+    print ('Counts: ')
+    highPointDict = {}
+    for i in set(highPointList):
+        highPointDict[i] = highPointList.count(i)
+    print ('One Way:')
+    for i in sorted(set(highPointList)):
+        print (i, highPointList.count(i))
+    print ('Or Another:')
+    for dictItem in sorted(highPointDict):
+        print (dictItem, ' points =', highPointDict[dictItem])
+
+
+    print ('Average: ' , sum(highPointList)/len(highPointList), 'Min: ' , min(highPointList), 'Max: ', max(highPointList))
+
 dupObject.close()
 
 
@@ -306,4 +276,8 @@ from itertools import groupby
 
 ##print ([list(group)  for key, group in groupby(birthdaylist)])
 
-print ('---------- MyEnd -----------------')
+endTime = DT.datetime.now()
+print ("Program end : %s" % endTime)
+
+diffTime = endTime - startTime
+print ("Run time ", diffTime.days, "Days:",diffTime.seconds , "Seconds", diffTime.microseconds, "MicroSeconds: ")
