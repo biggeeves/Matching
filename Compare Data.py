@@ -1,20 +1,23 @@
 import csv, sys, re
 import datetime as DT
 ##from datetime import datetime, timedelta
-import lib.myFuctions as AC
+
+import lib.MatchingFuctions as AC
 
 startTime = DT.datetime.now()
 print ("Program start : %s" % startTime )
 
-FromAccess = 'importFiles/Access.csv'
-FromSIR = 'importFiles/SIR.csv'
-dups = 'exportFiles/dups.txt'
+FromAccess = 'G:/SURVEY/access/importFiles/Access.csv'
+FromSIR = 'G:/SURVEY/access/importFiles/SIR.csv'
+FromSPSS = 'G:/SURVEY/access/importFiles/RELEVATE _2 FOR GREG.csv'
+dups = 'G:/SURVEY/access/exportFiles/dups.csv'
 
 ##FromAccess = 'importFiles/A1.csv'
 ##FromSIR = 'importFiles/S1.csv'
 
 accessDictionary = []
 sirDictionary = []
+SPSSDictionary = []
 highPointList = []
 
 
@@ -46,7 +49,6 @@ def makeDict (inFile, OutDict):
             if (minrow > lineNum or lineNum > maxrow):
                 continue 
             for eachCol in eachLine:
-##                print ('{0:30} ==> {1:30}'. format(colheader[colnum], col))
                 bigDict [colHeader[colNum]] = eachCol.upper()
                 colNum += 1
             OutDict.append(bigDict) 
@@ -54,7 +56,7 @@ def makeDict (inFile, OutDict):
     print ('Cycled trough ', inFile, ':', str(lineNum - 1))
 
 
-
+# ACCESS IMPORT
 minrow = 0
 maxrow = 10
 makeDict (FromAccess, accessDictionary)
@@ -65,20 +67,37 @@ for rowInAccess in accessDictionary:
     elif rowInAccess['sex'] == '1':
        rowInAccess['sex'] = 'F' 
     rowInAccess['address1'] = AC.cleanAddress(rowInAccess['address1'] )
-
 linesInAccess = len(accessDictionary)
 
+# SIR IMPORT
 minrow = 0
-maxrow = 7000
+maxrow = 10
 makeDict (FromSIR, sirDictionary)
-
 for rowInSIR in sirDictionary:
     if rowInSIR['db_sex'] == '0':   # zero = male
        rowInSIR['db_sex'] = 'M' 
     elif rowInSIR['db_sex'] == '1':
        rowInSIR['db_sex'] = 'F'
-
     rowInSIR['address'] = AC.cleanAddress(rowInSIR['address'] )
+
+# SPSS IMPORT.   A SINGLE SPACE MEANS NOTHING WAS IN THE COLUMN
+minrow = 0
+maxrow = 5
+makeDict (FromSPSS, SPSSDictionary)
+print (SPSSDictionary)
+for rowInSPSS in SPSSDictionary:
+    print (rowInSPSS['dobdd'] )
+    if rowInSPSS['dobdd'] == ' ':
+        rowInSPSS['dobdd'] = '15'
+    if rowInSPSS['dobmm'] == ' ':
+        rowInSPSS['dobmm'] = '6'
+    rowInSPSS['dob'] = rowInSPSS['dobmm'] + '/' + rowInSPSS['dobdd'] + '/' + rowInSPSS['dobccyy']
+    rowInSPSS['address1'] += ' ' + rowInSPSS['address2'] 
+    rowInSPSS['address1'] = AC.cleanAddress(rowInSPSS['address1'] )
+    print (rowInSPSS['address1'])
+
+    
+
 
 
 ## finding months and days and years
@@ -166,8 +185,13 @@ accessLine = 0
 accessPhoneBook = ['subject_phone_home', 'subject_phone_mobile', 'subject_phone_work', 'subject_phone_nursing']
 SIRPhoneBook = ['swphone', 'shphone', 'cwphone', 'chphone']
 
-with open(dups, 'w') as dupObject:
+with open(dups, 'w', newline='') as CSVDupObject:
+    print ('File Object Type: ' , type(CSVDupObject))
 
+    a = csv.DictWriter(CSVDupObject, delimiter=',', fieldnames=accessDictionary[0])
+    a.writeheader()
+
+    
     for rowInAccess in accessDictionary:
         accessLine += 1
         sirLine = 0
@@ -187,8 +211,7 @@ with open(dups, 'w') as dupObject:
                     if rowInAccess['fname'][0] !=  rowInSIR['lname'][0]:
                         skipRow = 1
 
-            if skipRow == 1:  continue
-                    
+            if skipRow == 1:  continue               
                 
             pointAddress = compareAddress (rowInSIR['address'] , rowInAccess['address1'])
 
@@ -235,39 +258,46 @@ with open(dups, 'w') as dupObject:
                 highAddress = rowInSIR['address']
                 matchInfo = {'pln': pointLastName, 'pfn': pointFirstName, 'pdob' : pointDOB, 'pphone' : pointPhone, 'paddress' : pointAddress}
         highPointList.append(highPoint)
-        if highPoint > 88:
-            print ('{0:5} {1:10} {2:15} {3:10} {4:35} {5:20}'. format('', rowInAccess['lname'], rowInAccess['fname'], rowInAccess['dob'], highPhone, rowInAccess['address1']))
-            print ('{0:5} {1:10} {2:15} {3:10} {4:35} {5:20}'. format( highPoint, highLast, highFirst, highDOB, '', highAddress ))
-            print ('{0:5} {1:10} {2:15} {3:10} {4:35} {5:20}'. format( '', matchInfo ['pln'], matchInfo ['pfn'], matchInfo ['pdob'], matchInfo['pphone'], matchInfo['paddress']))
-            print('----------------------\n')
+        if highPoint > 59:
+##            print ('{0:5} {1:10} {2:15} {3:10} {4:35} {5:20}'. format('', rowInAccess['lname'], rowInAccess['fname'], rowInAccess['dob'], highPhone, rowInAccess['address1']))
+##            print ('{0:5} {1:10} {2:15} {3:10} {4:35} {5:20}'. format( highPoint, highLast, highFirst, highDOB, '', highAddress ))
+##            print ('{0:5} {1:10} {2:15} {3:10} {4:35} {5:20}'. format( '', matchInfo ['pln'], matchInfo ['pfn'], matchInfo ['pdob'], matchInfo['pphone'], matchInfo['paddress']))
+##            print('----------------------\n')
 
-            str1 = rowInAccess['lname'] +',' + rowInAccess['fname'] + ',' +  rowInAccess['dob'] + ',' + highPhone +',' + rowInAccess['address1']
-            dupObject.write ('\n')
-            dupObject.write ('{0:5} {1:10} {2:15} {3:10} {4:35} {5:20}'. format('', rowInAccess['lname'], rowInAccess['fname'], rowInAccess['dob'], highPhone, rowInAccess['address1']))
-            dupObject.write ('\n')
-            dupObject.write ('{0:5} {1:10} {2:15} {3:10} {4:35} {5:20}'. format( highPoint, highLast, highFirst, highDOB, '', highAddress ))
-            dupObject.write ('\n')
-            dupObject.write ('{0:5} {1:10} {2:15} {3:10} {4:35} {5:20}'. format( '', matchInfo ['pln'], matchInfo ['pfn'], matchInfo ['pdob'], matchInfo['pphone'], matchInfo['paddress']))
-            dupObject.write ('\n')
-        elif highPoint != 0:
-            print (accessLine,'/',linesInAccess, rowInAccess['lname'], highPoint)
-    ##        print ('{0:5} {1:10} {2:15} {3:10} {4:35}'. format(highPoint, rowInAccess['lname'], rowInAccess['fname'], rowInAccess['dob'], highPhone, rowInAccess['address1']))
+            str1 = rowInAccess['lname'] + ',' + rowInAccess['fname'] + ',' +  rowInAccess['dob'] + ',' + highPhone +',' + rowInAccess['address1']
+            a.writerow(rowInAccess)
             
-    print ('Counts: ')
-    highPointDict = {}
-    for i in set(highPointList):
-        highPointDict[i] = highPointList.count(i)
-    print ('One Way:')
-    for i in sorted(set(highPointList)):
-        print (i, highPointList.count(i))
-    print ('Or Another:')
-    for dictItem in sorted(highPointDict):
-        print (dictItem, ' points =', highPointDict[dictItem])
+   
+##            CSVDupObject.write ('{0:5} {1:10} {2:15} {3:10} {4:35} {5:20}'. format( highPoint, highLast, highFirst, highDOB, '', highAddress ))
+##            CSVDupObject.write ('{0:5} {1:10} {2:15} {3:10} {4:35} {5:20}'. format( '', matchInfo ['pln'], matchInfo ['pfn'], matchInfo ['pdob'], matchInfo['pphone'], matchInfo['paddress']))
 
+##            CSVDupObject.write ('\n')
+##            CSVDUPObject.write ('{0:5} {1:10} {2:15} {3:10} {4:35} {5:20}'. format('', rowInAccess['lname'], rowInAccess['fname'], rowInAccess['dob'], highPhone, rowInAccess['address1']))
+##            CSVDupObject.write ('\n')
+##            CSVDupObject.write ('{0:5} {1:10} {2:15} {3:10} {4:35} {5:20}'. format( highPoint, highLast, highFirst, highDOB, '', highAddress ))
+##            CSVDupObject.write ('\n')
+##            CSVDupObject.write ('{0:5} {1:10} {2:15} {3:10} {4:35} {5:20}'. format( '', matchInfo ['pln'], matchInfo ['pfn'], matchInfo ['pdob'], matchInfo['pphone'], matchInfo['paddress']))
+##            CSVDupObject.write ('\n')
+        elif highPoint != 0:
+##            print (accessLine,'/',linesInAccess, rowInAccess['lname'], highPoint)
+            print ('{0:5} {1:10} {2:15} {3:10} {4:35}'. format(highPoint, rowInAccess['lname'], rowInAccess['fname'], rowInAccess['dob'], highPhone, rowInAccess['address1']))
+
+### reporting section            
+##    print ('Counts: ')
+##    highPointDict = {}
+##    for i in set(highPointList):
+##        highPointDict[i] = highPointList.count(i)
+##    print ('One Way:')
+##    for i in sorted(set(highPointList)):
+##        print (i, highPointList.count(i))
+##    print ('Or Another:')
+##    for dictItem in sorted(highPointDict):
+##        print (dictItem, ' points =', highPointDict[dictItem])
+##
 
     print ('Average: ' , sum(highPointList)/len(highPointList), 'Min: ' , min(highPointList), 'Max: ', max(highPointList))
 
-dupObject.close()
+CSVDupObject.close()
 
 
 from itertools import groupby
