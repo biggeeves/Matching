@@ -2,7 +2,7 @@ import csv, sys, re
 import datetime as DT
 ##from datetime import datetime, timedelta
 
-import lib.MatchingFuctions as AC
+import lib.MatchingFunctions as AC
 
 startTime = DT.datetime.now()
 print ("Program start : %s" % startTime )
@@ -15,10 +15,12 @@ dups = 'G:/SURVEY/access/exportFiles/dups.csv'
 ##FromAccess = 'importFiles/A1.csv'
 ##FromSIR = 'importFiles/S1.csv'
 
-accessDictionary = []
-sirDictionary = []
-SPSSDictionary = []
+accessDict = []
+sirDict = []
+SPSSDict = []
 highPointList = []
+highSir = {}
+highAccess = {}
 
 
 
@@ -28,7 +30,7 @@ def makeDict (inFile, OutDict):
     ifile  = open(inFile, 'r')
     reader = csv.reader(ifile)
     lineNum = 0
-    print (maxrow)
+    colHeader =[]
     for eachLine in reader:
         lineNum += 1
 ##      check for blank lines
@@ -36,13 +38,10 @@ def makeDict (inFile, OutDict):
             print ('Blank Line')
             continue
 ##      Save header row.
-        lowerList = []
         if lineNum == 1:
-            colHeader = eachLine
-##          Lowercase column headers
-            for colItem in colHeader:
-                lowerList.append(colItem.lower())
-            colHeader = lowerList
+##          Create Lowercase column header list
+            for colItem in eachLine:
+                colHeader.append(colItem.lower())
         else:
             bigDict = {}
             colNum = 0
@@ -58,22 +57,22 @@ def makeDict (inFile, OutDict):
 
 # ACCESS IMPORT
 minrow = 0
-maxrow = 10
-makeDict (FromAccess, accessDictionary)
+maxrow = 90000
+makeDict (FromAccess, accessDict)
 ## clean data from access
-for rowInAccess in accessDictionary:
+for rowInAccess in accessDict:
     if rowInAccess['sex'] == '0':   # zero = male
        rowInAccess['sex'] = 'M' 
     elif rowInAccess['sex'] == '1':
        rowInAccess['sex'] = 'F' 
     rowInAccess['address1'] = AC.cleanAddress(rowInAccess['address1'] )
-linesInAccess = len(accessDictionary)
+linesInAccess = len(accessDict)
 
 # SIR IMPORT
 minrow = 0
-maxrow = 10
-makeDict (FromSIR, sirDictionary)
-for rowInSIR in sirDictionary:
+maxrow = 90000
+makeDict (FromSIR, sirDict)
+for rowInSIR in sirDict:
     if rowInSIR['db_sex'] == '0':   # zero = male
        rowInSIR['db_sex'] = 'M' 
     elif rowInSIR['db_sex'] == '1':
@@ -82,11 +81,10 @@ for rowInSIR in sirDictionary:
 
 # SPSS IMPORT.   A SINGLE SPACE MEANS NOTHING WAS IN THE COLUMN
 minrow = 0
-maxrow = 5
-makeDict (FromSPSS, SPSSDictionary)
-print (SPSSDictionary)
-for rowInSPSS in SPSSDictionary:
-    print (rowInSPSS['dobdd'] )
+maxrow = 10000
+makeDict (FromSPSS, SPSSDict)
+
+for rowInSPSS in SPSSDict:
     if rowInSPSS['dobdd'] == ' ':
         rowInSPSS['dobdd'] = '15'
     if rowInSPSS['dobmm'] == ' ':
@@ -94,10 +92,7 @@ for rowInSPSS in SPSSDictionary:
     rowInSPSS['dob'] = rowInSPSS['dobmm'] + '/' + rowInSPSS['dobdd'] + '/' + rowInSPSS['dobccyy']
     rowInSPSS['address1'] += ' ' + rowInSPSS['address2'] 
     rowInSPSS['address1'] = AC.cleanAddress(rowInSPSS['address1'] )
-    print (rowInSPSS['address1'])
-
-    
-
+    rowInSPSS['highPoint'] = 0
 
 
 ## finding months and days and years
@@ -181,75 +176,85 @@ def comparePhone (phone1, phone2):
 
 
 print ('----Cycle Through Both Dictionaries----------')
-accessLine = 0
+SPSSLine = 0
 accessPhoneBook = ['subject_phone_home', 'subject_phone_mobile', 'subject_phone_work', 'subject_phone_nursing']
+SPSSPhoneBook = ['phonenumber']
 SIRPhoneBook = ['swphone', 'shphone', 'cwphone', 'chphone']
 
 with open(dups, 'w', newline='') as CSVDupObject:
     print ('File Object Type: ' , type(CSVDupObject))
 
-    a = csv.DictWriter(CSVDupObject, delimiter=',', fieldnames=accessDictionary[0])
+    a = csv.DictWriter(CSVDupObject, delimiter=',', fieldnames=SPSSDict[0])
     a.writeheader()
 
     
-    for rowInAccess in accessDictionary:
-        accessLine += 1
+    for rowInSPSS in SPSSDict:
+        SPSSLine += 1
         sirLine = 0
-        highPoint = 0
         highID = highLast = highDOB =highPhone = ''
         highMatch = highAddress = 0
 
-        for rowInSIR in sirDictionary:
+        for rowInSIR in sirDict:
             sirLine +=1
             skipRow = 0
             pointTotal = pointDOB= pointFirstName = pointLastName = pointAddress = pointPhone= 0
             matchingPhones = ''
             MUL_FACT = 2
     ##      speed things ups
-            if len(rowInAccess['lname']) and  len(rowInSIR['lname']):
-                if rowInAccess['lname'][0] !=  rowInSIR['lname'][0]:
-                    if rowInAccess['fname'][0] !=  rowInSIR['lname'][0]:
+            if len(rowInSPSS['lastname']) and  len(rowInSIR['lname']):
+                if rowInSPSS['lastname'][0] !=  rowInSIR['lname'][0]:
+                    if rowInSPSS['firstname'][0] !=  rowInSIR['lname'][0]:
                         skipRow = 1
 
             if skipRow == 1:  continue               
                 
-            pointAddress = compareAddress (rowInSIR['address'] , rowInAccess['address1'])
+            pointAddress = compareAddress (rowInSPSS['address1'], rowInSIR['address'])
 
-            pointDOB = compareDOB (rowInSIR['db_dob'] , rowInAccess['dob'] )
+            pointDOB = compareDOB (rowInSPSS['dob'] , rowInSIR['db_dob'])
 
-            pointLastName = compareLName(rowInSIR['lname'],  rowInAccess['lname'])
+            pointLastName = compareLName(rowInSPSS['lastname'], rowInSIR['lname'])
             
     ##      Same phone number in multiple columns is a problem.
-            accessPhoneList = sirPhoneList = []
-            for eachAccessPhone in accessPhoneBook:
-                accessPhoneList.append(rowInAccess[eachAccessPhone])
-            accessPhoneList = sorted(set(accessPhoneList))
+            SPSSPhoneList = sirPhoneList = []
+            for eachSPSSPhone in SPSSPhoneBook:
+                SPSSPhoneList.append(rowInSPSS[eachSPSSPhone])
+            SPSSPhoneList = sorted(set(SPSSPhoneList))
             for eachSIRPhone in SIRPhoneBook:
                 sirPhoneList.append(rowInSIR[eachSIRPhone])
             sirPhoneList = sorted(set(sirPhoneList))
-            for eachAccessPhone in accessPhoneList:
+            for eachSPSSPhone in SPSSPhoneList:
                 for eachSIRPhone in sirPhoneList:
-                    tempPhonePoints = comparePhone (eachSIRPhone, eachAccessPhone) 
+                    tempPhonePoints = comparePhone (eachSIRPhone, eachSPSSPhone) 
                     if tempPhonePoints > 0 :
-                        matchingPhones += eachSIRPhone + ' = ' + eachAccessPhone + ','
+                        matchingPhones += eachSIRPhone + ' = ' + eachSPSSPhone + ','
                         pointPhone += tempPhonePoints
                             
 
             if pointLastName == 10 :
                 MUL_FACT *= 2
-                if rowInSIR['fname'] == rowInAccess['fname']:
+                if rowInSPSS['firstname'] == rowInSIR['fname']:
                     pointFirstName += 8
                     MUL_FACT *= 2
-                elif rowInSIR['fname'] in rowInAccess['fname']:
+                elif rowInSIR['fname'] in rowInSPSS['firstname']:
                     pointFirstName += 10  # but no mult_factor
                     MUL_FACT *= 2
 
-            elif rowInSIR['fname'] == rowInAccess['fname']:
+            elif rowInSPSS['firstname'] == rowInSIR['fname']:
                 pointFirstName  += 3
-                
+            pointTotal = 0
             pointTotal = pointDOB + pointLastName + pointFirstName + pointAddress + pointPhone
-            if pointTotal > highPoint:
-                highPoint = pointTotal
+            if pointTotal > rowInSPSS['highPoint'] :
+                rowInSPSS['highPoint'] = pointTotal
+                
+                highSir['id'] = rowInSIR['id_num']
+                highSir['lname'] = rowInSIR['lname']
+                highSir['fname'] = rowInSIR['fname']
+                highSir['dob'] = rowInSIR['db_dob']
+                highSir['address'] = rowInSIR['address']
+                highSir['phone'] = matchingPhones
+                highSir['sex'] = rowInSIR['db_sex']
+
+                
                 highID = rowInSIR['id_num']
                 highLast = rowInSIR['lname']
                 highFirst = rowInSIR['fname']
@@ -257,43 +262,22 @@ with open(dups, 'w', newline='') as CSVDupObject:
                 highPhone = matchingPhones
                 highAddress = rowInSIR['address']
                 matchInfo = {'pln': pointLastName, 'pfn': pointFirstName, 'pdob' : pointDOB, 'pphone' : pointPhone, 'paddress' : pointAddress}
-        highPointList.append(highPoint)
-        if highPoint > 59:
-##            print ('{0:5} {1:10} {2:15} {3:10} {4:35} {5:20}'. format('', rowInAccess['lname'], rowInAccess['fname'], rowInAccess['dob'], highPhone, rowInAccess['address1']))
-##            print ('{0:5} {1:10} {2:15} {3:10} {4:35} {5:20}'. format( highPoint, highLast, highFirst, highDOB, '', highAddress ))
-##            print ('{0:5} {1:10} {2:15} {3:10} {4:35} {5:20}'. format( '', matchInfo ['pln'], matchInfo ['pfn'], matchInfo ['pdob'], matchInfo['pphone'], matchInfo['paddress']))
-##            print('----------------------\n')
-
-            str1 = rowInAccess['lname'] + ',' + rowInAccess['fname'] + ',' +  rowInAccess['dob'] + ',' + highPhone +',' + rowInAccess['address1']
-            a.writerow(rowInAccess)
-            
-   
-##            CSVDupObject.write ('{0:5} {1:10} {2:15} {3:10} {4:35} {5:20}'. format( highPoint, highLast, highFirst, highDOB, '', highAddress ))
-##            CSVDupObject.write ('{0:5} {1:10} {2:15} {3:10} {4:35} {5:20}'. format( '', matchInfo ['pln'], matchInfo ['pfn'], matchInfo ['pdob'], matchInfo['pphone'], matchInfo['paddress']))
-
-##            CSVDupObject.write ('\n')
-##            CSVDUPObject.write ('{0:5} {1:10} {2:15} {3:10} {4:35} {5:20}'. format('', rowInAccess['lname'], rowInAccess['fname'], rowInAccess['dob'], highPhone, rowInAccess['address1']))
-##            CSVDupObject.write ('\n')
-##            CSVDupObject.write ('{0:5} {1:10} {2:15} {3:10} {4:35} {5:20}'. format( highPoint, highLast, highFirst, highDOB, '', highAddress ))
-##            CSVDupObject.write ('\n')
-##            CSVDupObject.write ('{0:5} {1:10} {2:15} {3:10} {4:35} {5:20}'. format( '', matchInfo ['pln'], matchInfo ['pfn'], matchInfo ['pdob'], matchInfo['pphone'], matchInfo['paddress']))
-##            CSVDupObject.write ('\n')
-        elif highPoint != 0:
-##            print (accessLine,'/',linesInAccess, rowInAccess['lname'], highPoint)
-            print ('{0:5} {1:10} {2:15} {3:10} {4:35}'. format(highPoint, rowInAccess['lname'], rowInAccess['fname'], rowInAccess['dob'], highPhone, rowInAccess['address1']))
+        highPointList.append(rowInSPSS['highPoint'])
+        a.writerow(rowInSPSS)
+        print (SPSSLine , rowInSPSS['highPoint'], rowInSPSS['firstname'], rowInSPSS['lastname'])
 
 ### reporting section            
-##    print ('Counts: ')
-##    highPointDict = {}
-##    for i in set(highPointList):
-##        highPointDict[i] = highPointList.count(i)
-##    print ('One Way:')
-##    for i in sorted(set(highPointList)):
-##        print (i, highPointList.count(i))
-##    print ('Or Another:')
-##    for dictItem in sorted(highPointDict):
-##        print (dictItem, ' points =', highPointDict[dictItem])
-##
+    print ('Counts: ')
+    highPointDict = {}
+    for i in set(highPointList):
+        highPointDict[i] = highPointList.count(i)
+    print ('One Way:')
+    for i in sorted(set(highPointList)):
+        print (i, highPointList.count(i))
+    print ('Or Another:')
+    for dictItem in sorted(highPointDict):
+        print (dictItem, ' points =', highPointDict[dictItem])
+
 
     print ('Average: ' , sum(highPointList)/len(highPointList), 'Min: ' , min(highPointList), 'Max: ', max(highPointList))
 
